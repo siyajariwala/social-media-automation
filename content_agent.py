@@ -14,6 +14,7 @@ Author: Siya Jariwala
 import json
 import anthropic
 import os
+import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -46,6 +47,7 @@ def generate_post_ideas(topic):
          - Each idea is a SHORT bullet-style concept — a quick pitch, not a full outline. Keep it brief.
          - Each idea targets a different platform: LinkedIn, Twitter, Instagram.
          - Pick a tone per idea (educational, provocative, personal, etc.) based on what fits the topic.
+         - Respect the emotional framing of the topic as written
     </task>"""
             }
         ]
@@ -109,13 +111,37 @@ def display_ideas(ideas_list):
         print(f"{i}. [{idea['platform']}] {idea['tone']} — {idea['concept']}")
         print()
 
+def save_post(post, platform):
+    entry = {
+        "timestamp": str(datetime.datetime.now()),
+        "platform": platform,
+        "content": post
+    }
     
-# Example usage
-if __name__ == "__main__":
-    topic = "AI replacing humans in the workforce"
+ 
+    os.makedirs("output", exist_ok=True)
     
+    # loading existing posts if the file exists
+    if os.path.exists("output/posts.json"):
+        with open("output/posts.json", "r") as f:
+            posts = json.load(f)
+    else:
+        posts = []
+    
+    # adding the new post
+    posts.append(entry)
+
+    # writing everything back
+    with open("output/posts.json", "w") as f:
+        json.dump(posts, f, indent=2)
+
+# Main function to run the CLI tool
+def main():
+    topic = input("Enter a topic: ")
+    print(f"\nGenerating ideas for: {topic}\n")
     ideas_json = generate_post_ideas(topic)
     
+    # The API response may include markdown code fences or other formatting, so we need to clean it up before parsing as JSON.
     ideas_json = ideas_json.strip()
     if ideas_json.startswith("```"):
         ideas_json = ideas_json.split("```")[1]
@@ -125,13 +151,26 @@ if __name__ == "__main__":
     ideas_list = json.loads(ideas_json.strip())
     
     display_ideas(ideas_list)
+    choice = input("\nSelect an idea (1-3): ")
+    choice_index = int(choice) - 1
+    selected = ideas_list[choice_index]
     
-    selected = ideas_list[0]  # hardcode picking #1 for this test
+    print(f"\nYou selected: [{selected['platform']}] {selected['concept']}")
     print(f"\nDrafting post for: {selected['platform']}\n")
-    
+
+    # Draft the post based on the selected idea
     post = draft_post(selected["concept"])
     print(post)
-    
-    print("\n--- Testing revision ---\n")
-    revised = revise_post(post, "make it punchier")
-    print(revised)
+    while True:
+        feedback = input("\nApprove or give feedback: ")
+        if feedback.lower() == "approve":
+            save_post(post, selected["platform"])
+            print("\nSaved to output/posts.json")
+            break
+        post = revise_post(post, feedback)
+        print(f"\n{post}\n")
+
+
+
+if __name__ == "__main__":
+    main()
