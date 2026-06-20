@@ -27,13 +27,15 @@ client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 #function to generate post ideas based on the given topic
 def generate_post_ideas(topic):
-    response = client.messages.create(
-        model = "claude-sonnet-4-5-20250929",
-        max_tokens=1000,
-        system = " <Role> You are an expert and well experienced social media content stratergist. Write plainly and directly, like you're explaining something to a smart friend. Cut anything vague, buzzwordy, or safe. Back claims with specifics, not generalities </Role> ",
-        messages=[
-    {
-    "role": "user", "content": f"""<task>
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=1000,
+            system="<Role> You are an expert and well experienced social media content strategist. Write plainly and directly, like you're explaining something to a smart friend. Cut anything vague, buzzwordy, or safe. Back claims with specifics, not generalities </Role>",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"""<task>
     Generate 3 post ideas related to the topic: '{topic}'.
     Return ONLY valid JSON in this exact format, nothing else — no explanation, no markdown code fences:
 [
@@ -42,26 +44,30 @@ def generate_post_ideas(topic):
     {{"platform": "Instagram", "tone": "Personal", "concept": "short concept here"}}
 ]
 
-
     Guidelines:
          - Each idea is a SHORT bullet-style concept — a quick pitch, not a full outline. Keep it brief.
          - Each idea targets a different platform: LinkedIn, Twitter, Instagram.
          - Pick a tone per idea (educational, provocative, personal, etc.) based on what fits the topic.
          - Respect the emotional framing of the topic as written
     </task>"""
-            }
-        ]
-    )
-    return response.content[0].text
+                }
+            ]
+        )
+        return response.content[0].text
+    except Exception as e:
+        print(f"Error generating ideas: {e}")
+        return None
+
 
 #function to draft a full social media post based on the given idea
 def draft_post(idea):
-    response = client.messages.create(
-        model = "claude-sonnet-4-5-20250929",
-        max_tokens=1000,            
-        system = " <Role> You are an expert and well experienced social media content stratergist. Write plainly and directly, like you're explaining something to a smart friend. Cut anything vague, buzzwordy, or safe. Back claims with specifics, not generalities </Role> ",
-        messages=[
-    {
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=1000,
+            system=" <Role> You are an expert and well experienced social media content stratergist. Write plainly and directly, like you're explaining something to a smart friend. Cut anything vague, buzzwordy, or safe. Back claims with specifics, not generalities </Role> ",
+            messages=[
+                {
     "role": "user", "content": f"""<task>
     Draft a full social media post based on the following idea: '{idea}'. 
     The idea text above specifies the platform in brackets (e.g. [LinkedIn]). Write the post ONLY for that one platform — do not draft multiple versions.
@@ -75,17 +81,21 @@ def draft_post(idea):
          - Do not add a title, header, or label like "Social Media Post" — start directly with the post content.
          - Use short bullet points.
     </task>"""
-            }
-        ]
-    )
-    return response.content[0].text
+                }
+            ]
+        )
+        return response.content[0].text
+    except Exception as e:
+        print(f"Error revising post: {e}")
+        return None
 
 def revise_post(post, feedback):
-    response = client.messages.create(
-        model = "claude-sonnet-4-5-20250929",
-        max_tokens=1000,            
-        system = " <Role> You are an expert and well experienced social media content stratergist. Write plainly and directly, like you're explaining something to a smart friend. Cut anything vague, buzzwordy, or safe. Back claims with specifics, not generalities </Role> ",
-        messages=[
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=1000,
+            system=" <Role> You are an expert and well experienced social media content stratergist. Write plainly and directly, like you're explaining something to a smart friend. Cut anything vague, buzzwordy, or safe. Back claims with specifics, not generalities </Role> ",
+            messages=[
             {"role": "user", "content": f"""<task>
     Revise the following social media post based on this feedback: '{feedback}'. 
     Original Post: '{post}'
@@ -97,10 +107,13 @@ def revise_post(post, feedback):
          - Do not use markdown symbols like ** for bold or # for headers — write in plain text. Emojis are fine if they fit the platform and tone.
          - Use short bullet points if appropriate.
     </task>"""
-            }
+              }
         ]
-    )
-    return response.content[0].text
+        )
+        return response.content[0].text
+    except Exception as e:
+        print(f"Error revising post: {e}")
+        return None
 
 
 
@@ -139,37 +152,59 @@ def save_post(post, platform):
 def main():
     topic = input("Enter a topic: ")
     print(f"\nGenerating ideas for: {topic}\n")
+    
     ideas_json = generate_post_ideas(topic)
     
-    # The API response may include markdown code fences or other formatting, so we need to clean it up before parsing as JSON.
+    if ideas_json is None:
+        print("Failed to generate ideas. Exiting.")
+        return
+    
     ideas_json = ideas_json.strip()
     if ideas_json.startswith("```"):
         ideas_json = ideas_json.split("```")[1]
         if ideas_json.startswith("json"):
             ideas_json = ideas_json[4:]
     
-    ideas_list = json.loads(ideas_json.strip())
+    try:
+        ideas_list = json.loads(ideas_json.strip())
+    except json.JSONDecodeError:
+        print("Failed to parse ideas. Please try again.")
+        return
     
     display_ideas(ideas_list)
-    choice = input("\nSelect an idea (1-3): ")
-    choice_index = int(choice) - 1
-    selected = ideas_list[choice_index]
+    
+    while True:
+        choice = input("\nSelect an idea (1-3): ")
+        try:
+            choice_index = int(choice) - 1
+            selected = ideas_list[choice_index]
+            break
+        except (ValueError, IndexError):
+            print("Please enter 1, 2, or 3.")
     
     print(f"\nYou selected: [{selected['platform']}] {selected['concept']}")
     print(f"\nDrafting post for: {selected['platform']}\n")
-
-    # Draft the post based on the selected idea
+    
     post = draft_post(selected["concept"])
+    
+    if post is None:
+        print("Failed to draft post. Exiting.")
+        return
+    
     print(post)
+    
     while True:
         feedback = input("\nApprove or give feedback: ")
         if feedback.lower() == "approve":
             save_post(post, selected["platform"])
             print("\nSaved to output/posts.json")
             break
-        post = revise_post(post, feedback)
+        revised = revise_post(post, feedback)
+        if revised is None:
+            print("Failed to revise post. Try again or type 'approve'.")
+            continue
+        post = revised
         print(f"\n{post}\n")
-
 
 
 if __name__ == "__main__":
