@@ -42,6 +42,7 @@ You'll be prompted to:
 
 Approved posts are saved to `output/posts.json`.
 
+Loom Link : https://www.loom.com/share/e45c94c9842146549d226b1351503876
 
 ## Judgment Calls
 
